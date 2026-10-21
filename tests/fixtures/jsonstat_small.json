@@ -1,0 +1,14 @@
+{
+  "version": "2.0",
+  "class": "dataset",
+  "label": "Hand-written JSON-stat fixture (shape of the Eurostat API response)",
+  "id": ["unit", "geo", "time"],
+  "size": [2, 2, 2],
+  "dimension": {
+    "unit": {"category": {"index": {"MIO_EUR": 0, "PC_GDP": 1}}},
+    "geo": {"category": {"index": {"ES": 0, "FR": 1}}},
+    "time": {"category": {"index": {"2023": 0, "2024": 1}}}
+  },
+  "value": {"0": 41000.0, "1": 43253.0, "2": 70000.0, "3": 72000.0, "4": 2.7, "5": 2.7},
+  "status": {"1": "p", "7": "c"}
+}

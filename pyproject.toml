@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "estado-capital"
+version = "0.1.0"
+description = "Índice público del estado del capital: ¿mantiene un país sus stocks de capital público?"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.1",
+    "pyarrow>=14",
+    "requests>=2.31",
+    "dash>=2.14",
+    "plotly>=5.18",
+]
+
+[project.optional-dependencies]
+s3 = ["boto3>=1.28"]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+markers = ["data: checks on the processed parquet (skipped until `make etl` has run)"]
