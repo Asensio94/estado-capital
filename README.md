@@ -16,7 +16,7 @@ muestra con su definición, su fuente y sus advertencias.
 | 2 | Intereses frente a educación | Intereses (D41PAY) / gasto en educación (COFOG GF09), y ambos en % del PIB | Eurostat `gov_10a_main`, `gov_10a_exp` |
 | 3 | Electricidad para la industria | EUR/kWh sin IVA, banda ID desde 2007 y consumidor Ie antes; EE. UU. opcional | Eurostat `nrg_pc_205`, `ert_bil_eur_a`; EIA |
 | 4 | Productividad por hora | Nivel en PPS (UE-27 = 100) e índice real (1995 = 100) | Eurostat `nama_10_lp_ulc` |
-| 5 | PISA por cohortes | Media en matemáticas y lectura, por edición y año de nacimiento | OCDE (CSV manual) |
+| 5 | PISA por cohortes | Media en matemáticas y lectura, por edición y año de nacimiento | OCDE (tablas del informe PISA 2022) |
 
 Los porcentajes del PIB se calculan desde niveles en millones de euros. Los `PC_GDP` de
 Eurostat vienen redondeados a una décima y se usan solo como control (véase
@@ -77,10 +77,12 @@ entorno, perfil o rol).
 
 ### PISA
 
-PISA no se publica en ninguna API. Hay que descargar el CSV del OECD Data Explorer y guardarlo
-en `data/manual/pisa/` junto con un `pisa.meta.json` con la fecha de descarga y la URL. El formato
-está en [data/manual/pisa/README.md](data/manual/pisa/README.md). Sin esos ficheros el indicador
-aparece como ausente.
+PISA no se publica en ninguna API ni en el OECD Data Explorer. Los datos salen del libro Excel
+del informe *PISA 2022 Results (Volume I)* (StatLink <https://stat.link/wh9d4z>, tablas I.B1.5.4
+y I.B1.5.5) y se guardan ya convertidos en `data/manual/pisa/pisa.csv`, con un `pisa.meta.json`
+que registra fecha de descarga, URL y SHA-256 del libro. Para regenerarlos:
+`pip install -e ".[pisa]"` y `python -m etl.pisa_statlink`. Detalles en
+[data/manual/pisa/README.md](data/manual/pisa/README.md).
 
 ## Qué se guarda
 

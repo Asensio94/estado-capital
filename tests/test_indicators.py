@@ -160,3 +160,32 @@ class TestPisa:
         assert es.loc[2022, "cohort"] == 2007 and es.loc[2022, "mean"] == 473
         assert not es.loc[2000, "trend_comparable"] and es.loc[2003, "trend_comparable"]
         assert np.isnan(es.loc[2003, "mean"]) and es.loc[2003, "status"] == "missing"
+
+
+class TestStatLink:
+    """The converter for the OECD's PISA 2022 trend workbook, on a synthetic sheet."""
+
+    def _sheet(self, spain_label="Spain"):
+        from etl.pisa_statlink import ROWS
+        head = [[None] * 5 for _ in range(5)]
+        head += [[None, "PISA 2003", None, "PISA 2022", None], [None, "Mean score", "S.E.", "Mean score", "S.E."]]
+        body = [[spain_label if geo == "ES" else label, 480.5, 2.4, "m", "m"] for label, geo in ROWS.items()]
+        return pd.DataFrame(head + body)
+
+    def test_parse_drops_nothing_and_keeps_m_as_missing(self):
+        from etl.pisa_statlink import parse_table
+        df, cautions = parse_table(self._sheet(), "math")
+        assert len(df) == 7 * 2 and not cautions
+        es = df[df["geo"] == "ES"].set_index("edition")
+        assert es.loc[2003, "mean"] == 480.5 and es.loc[2003, "se"] == 2.4
+        assert np.isnan(es.loc[2022, "mean"]) and np.isnan(es.loc[2022, "se"])
+
+    def test_sampling_caution_marker_is_recorded(self):
+        from etl.pisa_statlink import parse_table
+        _, cautions = parse_table(self._sheet("Spain*"), "reading")
+        assert cautions == ["Spain* (reading)"]
+
+    def test_missing_country_row_rejected(self):
+        from etl.pisa_statlink import parse_table
+        with pytest.raises(pisa_source.PisaFormatError, match="Spain"):
+            parse_table(self._sheet("España"), "math")

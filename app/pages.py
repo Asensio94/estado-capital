@@ -163,10 +163,14 @@ def pisa_page():
         )])
     df = df.assign(series=df["subject"])
     cols = ["geo_name", "edition", "cohort", "subject", "mean", "se", "trend_comparable", "status"]
-    missing = [f"{s}: {line}" for s, sub in df.groupby("subject") for line in data.missing_ranges(sub, "mean", period="edition")]
+    subjects = {"math": "Matemáticas", "reading": "Lectura"}
+    missing = [f"{subjects[s]}: {line}" for s, sub in df.groupby("subject") for line in data.missing_ranges(sub, "mean", period="edition")]
+    note = "Las líneas se cortan donde falta una edición; no se interpolan."
+    if df.loc[~df["trend_comparable"], "mean"].notna().any():
+        note += " Círculo hueco: matemáticas 2000, no comparable con la tendencia."
     return html.Div([chart_card(
         "Rendimiento PISA por edición (y cohorte de nacimiento)", charts.pisa_lines(df), m,
-        note="Círculo hueco: matemáticas 2000, no comparable con la tendencia.", missing=missing, table=df[cols],
+        note=note, missing=missing, table=df[cols],
     )])
 
 

@@ -135,14 +135,22 @@ por kWh, de `nrg_pc_205`.
 
 ## Indicador 5: PISA por cohortes
 
-- PISA no está en la API SDMX de la OCDE. Se importa un CSV descargado a mano del OECD Data
-  Explorer (`data/manual/pisa/`), con un `pisa.meta.json` que registra la fecha de descarga y
-  la URL. Sin esos ficheros el indicador aparece como ausente; nunca se rellena.
+- PISA no está en la API SDMX de la OCDE ni en el OECD Data Explorer. La fuente es el libro
+  Excel del informe *PISA 2022 Results (Volume I)*, anexo B1, capítulo 5 (StatLink
+  <https://stat.link/wh9d4z>): tabla I.B1.5.4 (matemáticas, 2003–2022) y I.B1.5.5 (lectura,
+  2000–2022). `python -m etl.pisa_statlink` la convierte en `data/manual/pisa/pisa.csv`, copia
+  medias y errores típicos con toda su precisión y anota en `pisa.meta.json` la fecha de
+  descarga, la URL y el SHA-256 del libro. Las celdas `m` se quedan sin fila; nunca se rellenan.
+- Referencia: **media OCDE-23**, los países de la OCDE que pueden comparar su rendimiento en
+  todas las ediciones de 2000 a 2022. Se prefiere a la «media OCDE» de cada informe porque su
+  composición no cambia, y porque el libro solo trae esta última para 2012, 2015 y 2022.
 - La cohorte es el año de nacimiento aproximado: edición − 15.
-- Las tendencias de matemáticas solo son comparables desde 2003 (lectura desde 2000). El punto
-  de matemáticas de 2000 se dibuja suelto.
+- Las tendencias de matemáticas solo son comparables desde 2003 (lectura desde 2000); la tabla
+  de tendencias no incluye matemáticas de 2000, así que esa edición queda ausente.
+- España no tiene 2018 en ninguna de las dos tablas: la OCDE retuvo su lectura de 2018 por
+  respuestas anómalas y la tabla de matemáticas de 2022 también la marca como `m`. Las líneas se
+  cortan en ese hueco.
 - La edición de 2022 se aplazó un año por la pandemia.
-- La media de la OCDE cambia de composición entre ediciones.
 - Diferencias de pocos puntos no son significativas: el error típico de cada media ronda 2–4
   puntos.
 
