@@ -19,6 +19,7 @@ dependencies = [
 s3 = ["boto3>=1.28"]
 dev = ["pytest>=7.4"]
 serve = ["gunicorn>=21"]
+pisa = ["openpyxl>=3.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

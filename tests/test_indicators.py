@@ -160,3 +160,57 @@ class TestPisa:
         assert es.loc[2022, "cohort"] == 2007 and es.loc[2022, "mean"] == 473
         assert not es.loc[2000, "trend_comparable"] and es.loc[2003, "trend_comparable"]
         assert np.isnan(es.loc[2003, "mean"]) and es.loc[2003, "status"] == "missing"
+
+
+class TestStatLink:
+    """The converter for the OECD's PISA 2022 trend workbook, on a synthetic sheet."""
+
+    def _sheet(self, spain_label="Spain"):
+        from etl.pisa_statlink import ROWS
+        head = [[None] * 5 for _ in range(5)]
+        head += [[None, "PISA 2003", None, "PISA 2022", None], [None, "Mean score", "S.E.", "Mean score", "S.E."]]
+        body = [[spain_label if geo == "ES" else label, 480.5, 2.4, "m", "m"] for label, geo in ROWS.items()]
+        return pd.DataFrame(head + body)
+
+    def test_parse_drops_nothing_and_keeps_m_as_missing(self):
+        from etl.pisa_statlink import parse_table
+        df, cautions = parse_table(self._sheet(), "math")
+        assert len(df) == 7 * 2 and not cautions
+        es = df[df["geo"] == "ES"].set_index("edition")
+        assert es.loc[2003, "mean"] == 480.5 and es.loc[2003, "se"] == 2.4
+        assert np.isnan(es.loc[2022, "mean"]) and np.isnan(es.loc[2022, "se"])
+
+    def test_sampling_caution_marker_is_recorded(self):
+        from etl.pisa_statlink import parse_table
+        _, cautions = parse_table(self._sheet("Spain*"), "reading")
+        assert cautions == ["Spain* (reading)"]
+
+    def test_missing_country_row_rejected(self):
+        from etl.pisa_statlink import parse_table
+        with pytest.raises(pisa_source.PisaFormatError, match="Spain"):
+            parse_table(self._sheet("España"), "math")
+
+
+class TestPisaFranceLede:
+    """The PISA page's sentence on France is computed, so it must follow the data."""
+
+    def _df(self, fr_2022, fr_se=2.5):
+        rows = [("FR", 2003, 510, 2.5), ("FR", 2022, fr_2022, fr_se), ("OECD", 2003, 502, 0.6),
+                ("OECD", 2022, 480, 0.5), ("ES", 2003, 485, 2.4), ("ES", 2022, 473, 1.5)]
+        return pd.DataFrame([dict(geo=g, edition=e, subject="math", mean=m, se=s) for g, e, m, s in rows])
+
+    def test_gap_within_sampling_error(self):
+        from app.pages import _pisa_france_lede
+        text = _pisa_france_lede(self._df(474))
+        assert "pierde 36 puntos entre 2003 y 2022, más que la media OCDE-23 (−22)" in text
+        assert "a la altura de España" in text
+
+    def test_significant_gap_and_smaller_fall(self):
+        from app.pages import _pisa_france_lede
+        text = _pisa_france_lede(self._df(495))
+        assert "menos que la media" in text and "frente a 473 de España" in text
+
+    def test_absent_value_gives_no_sentence(self):
+        from app.pages import _pisa_france_lede
+        df = self._df(474)
+        assert _pisa_france_lede(df[~((df["geo"] == "ES") & (df["edition"] == 2022))]) is None
