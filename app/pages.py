@@ -23,7 +23,7 @@ def synthesis():
             stat_tile(
                 sub["geo_name"].iloc[0],
                 "sin dato" if latest != latest else f"{_fmt(latest, 2)} %",
-                f"{n_neg} años ≤ 0 en {years}",
+                f"{n_neg} {'año' if n_neg == 1 else 'años'} ≤ 0 en {years}",
                 highlight=geo in ("ES", "FR"),
             )
         )
