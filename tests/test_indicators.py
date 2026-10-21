@@ -189,3 +189,28 @@ class TestStatLink:
         from etl.pisa_statlink import parse_table
         with pytest.raises(pisa_source.PisaFormatError, match="Spain"):
             parse_table(self._sheet("España"), "math")
+
+
+class TestPisaFranceLede:
+    """The PISA page's sentence on France is computed, so it must follow the data."""
+
+    def _df(self, fr_2022, fr_se=2.5):
+        rows = [("FR", 2003, 510, 2.5), ("FR", 2022, fr_2022, fr_se), ("OECD", 2003, 502, 0.6),
+                ("OECD", 2022, 480, 0.5), ("ES", 2003, 485, 2.4), ("ES", 2022, 473, 1.5)]
+        return pd.DataFrame([dict(geo=g, edition=e, subject="math", mean=m, se=s) for g, e, m, s in rows])
+
+    def test_gap_within_sampling_error(self):
+        from app.pages import _pisa_france_lede
+        text = _pisa_france_lede(self._df(474))
+        assert "pierde 36 puntos entre 2003 y 2022, más que la media OCDE-23 (−22)" in text
+        assert "a la altura de España" in text
+
+    def test_significant_gap_and_smaller_fall(self):
+        from app.pages import _pisa_france_lede
+        text = _pisa_france_lede(self._df(495))
+        assert "menos que la media" in text and "frente a 473 de España" in text
+
+    def test_absent_value_gives_no_sentence(self):
+        from app.pages import _pisa_france_lede
+        df = self._df(474)
+        assert _pisa_france_lede(df[~((df["geo"] == "ES") & (df["edition"] == 2022))]) is None

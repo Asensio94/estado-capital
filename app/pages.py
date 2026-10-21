@@ -152,6 +152,28 @@ def productivity_page():
     )
 
 
+def _pisa_france_lede(df) -> str | None:
+    """France's maths change vs the OECD-23, and where it ends relative to Spain. None if a value is absent."""
+    m = df[df["subject"] == "math"].set_index(["geo", "edition"])
+    first, last = int(m["mean"].dropna().index.get_level_values("edition").min()), int(df["edition"].max())
+    try:
+        fr0, fr1, oecd0, oecd1, es1 = (m.at[k, "mean"] for k in
+                                       [("FR", first), ("FR", last), ("OECD", first), ("OECD", last), ("ES", last)])
+        se = (m.at[("FR", last), "se"] ** 2 + m.at[("ES", last), "se"] ** 2) ** 0.5
+    except KeyError:
+        return None
+    if any(v != v for v in (fr0, fr1, oecd0, oecd1, es1, se)):
+        return None
+    # Two means differ significantly only if the gap exceeds ~2 standard errors of the difference.
+    vs_spain = (f"queda a la altura de España ({fr1:.0f} y {es1:.0f} puntos; la diferencia está dentro del error de muestreo)"
+                if abs(fr1 - es1) < 2 * se else f"queda en {fr1:.0f} puntos, frente a {es1:.0f} de España")
+    fr, oecd = fr1 - fr0, oecd1 - oecd0
+    verb = "pierde" if fr < 0 else "gana"
+    compare = "más" if (fr < oecd if fr < 0 else fr > oecd) else "menos"
+    return (f"En matemáticas, Francia {verb} {abs(fr):.0f} puntos entre {first} y {last}, {compare} que la media "
+            f"OCDE-23 ({'−' if oecd < 0 else '+'}{abs(oecd):.0f}), y en {last} {vs_spain}.")
+
+
 def pisa_page():
     df = data.table("pisa")
     m = pisa.META
@@ -168,7 +190,8 @@ def pisa_page():
     note = "Las líneas se cortan donde falta una edición; no se interpolan."
     if df.loc[~df["trend_comparable"], "mean"].notna().any():
         note += " Círculo hueco: matemáticas 2000, no comparable con la tendencia."
-    return html.Div([chart_card(
+    lede = _pisa_france_lede(df)
+    return html.Div(([html.P(lede, className="lede")] if lede else []) + [chart_card(
         "Rendimiento PISA por edición (y cohorte de nacimiento)", charts.pisa_lines(df), m,
         note=note, missing=missing, table=df[cols],
     )])
