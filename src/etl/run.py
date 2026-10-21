@@ -8,32 +8,41 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from core import storage
-from etl import catalog, eurostat
-from indicators import net_investment
+from core.config import START_YEAR
+from etl import catalog, eia, eurostat, pisa
+from indicators import electricity_prices, interest_education, net_investment, pisa as pisa_ind, productivity
 
 log = logging.getLogger(__name__)
 
 
 def tidy(extract: eurostat.Extract) -> pd.DataFrame:
-    """Annual observations with provenance columns; `year` replaces JSON-stat's `time`."""
-    df = extract.frame.drop(columns=["freq"], errors="ignore").rename(columns={"time": "year"})
-    df["year"] = df["year"].astype(int)
+    """Observations with provenance columns. Annual `time` becomes int `year`; other
+    frequencies (e.g. semesters, "2024-S1") keep it as string `period`."""
+    df = extract.frame.drop(columns=["freq"], errors="ignore")
+    if df["time"].str.fullmatch(r"\d{4}").all():
+        df = df.rename(columns={"time": "year"}).astype({"year": int})
+    else:
+        df = df.rename(columns={"time": "period"})
     df["dataset"] = extract.query.dataset
     df["extracted_at"] = extract.extracted_at
     df["source_updated"] = extract.source_updated
     return df
 
 
+def _summary(df: pd.DataFrame) -> dict:
+    return {"rows": len(df), "by_status": df["status"].value_counts().to_dict()}
+
+
 def run(*, refresh: bool = False, verify: bool = True, s3: bool = False) -> dict:
     session = eurostat.make_session()
-    sources = {}
-    tables = {}
-    for query in catalog.INDICATOR_1:
+    sources: dict[str, dict] = {}
+    t: dict[str, pd.DataFrame] = {}
+    for query in catalog.ALL:
         if verify:
             eurostat.verify_codes(query, session)
         extract = eurostat.fetch(query, refresh=refresh)
-        tables[query.dataset] = tidy(extract)
-        storage.write_processed(tables[query.dataset], f"eurostat_{query.dataset}")
+        t[query.dataset] = tidy(extract)
+        storage.write_processed(t[query.dataset], f"eurostat_{query.dataset}")
         sources[query.dataset] = {
             "label": extract.label,
             "url": extract.url,
@@ -43,20 +52,36 @@ def run(*, refresh: bool = False, verify: bool = True, s3: bool = False) -> dict
             "raw_file": extract.path.name,
         }
 
-    ni = net_investment.compute(tables["gov_10a_main"], tables["nama_10_gdp"])
-    storage.write_processed(ni, "net_investment")
+    # Optional sources: their absence leaves the corresponding series empty, never the run broken.
+    try:
+        us, us_meta = eia.fetch(START_YEAR, refresh=refresh)
+        sources["eia"] = {"label": "EIA electricity retail sales, industrial, US total", "browser_url": eia.BROWSER_URL, **us_meta}
+    except eia.EIAError as exc:
+        log.warning("EIA comparison skipped: %s", exc)
+        us = None
+
+    scores, pisa_meta = pisa.load()
+    if pisa_meta:
+        sources["pisa"] = {"label": "OECD PISA (manual CSV)", "browser_url": pisa_meta["source_url"],
+                           "extracted_at": pisa_meta["downloaded_on"], **pisa_meta}
+    else:
+        log.warning("PISA: no data/manual/pisa/pisa.csv; indicator 5 will be shown as absent")
+
+    gov, cofog, gdp = t["gov_10a_main"], t["gov_10a_exp"], t["nama_10_gdp"]
+    results = {
+        "net_investment": net_investment.compute(gov, gdp),
+        "interest_education": interest_education.compute(gov, cofog, gdp),
+        "electricity_prices": electricity_prices.compute(t["nrg_pc_205"], t["ert_bil_eur_a"], us),
+        "productivity": productivity.compute(t["nama_10_lp_ulc"]),
+        "pisa": pisa_ind.compute(scores),
+    }
+    for name, df in results.items():
+        storage.write_processed(df, name)
 
     manifest = {
         "built_at": datetime.now(timezone.utc).isoformat(),
         "sources": sources,
-        "indicators": {
-            "net_investment": {
-                "rows": len(ni),
-                "missing": int((ni["status"] == "missing").sum()),
-                "first_year": int(ni["year"].min()),
-                "last_year": int(ni["year"].max()),
-            }
-        },
+        "indicators": {name: _summary(df) for name, df in results.items()},
     }
     storage.write_manifest(manifest)
     if s3:

@@ -50,7 +50,7 @@ def test_shares_in_plausible_range(ni):
 
 
 def test_missing_rows_have_no_values(ni):
-    missing = ni[ni["status"] == "missing"]
+    missing = ni[ni["status"] != "ok"]
     assert missing["net_pc_gdp"].isna().all()
     assert ni.loc[ni["status"] == "ok", "net_pc_gdp"].notna().all()
 
@@ -60,3 +60,50 @@ def test_source_tables_have_no_duplicates():
     gdp = read_processed("eurostat_nama_10_gdp")
     assert not gov.duplicated(["geo", "year", "sector", "na_item", "unit"]).any()
     assert not gdp.duplicated(["geo", "year", "na_item", "unit"]).any()
+
+
+# COFOG uses an earlier GDP vintage than nama_10_gdp: up to 0.083 pp observed (DE), see METHODOLOGY.md.
+COFOG_ROUNDING = 0.1
+
+
+@pytest.mark.parametrize(
+    "name, key",
+    [
+        ("interest_education", ["geo", "year"]),
+        ("productivity", ["geo", "year"]),
+        ("electricity_prices", ["geo", "series", "period"]),
+        ("pisa", ["geo", "edition", "subject"]),
+    ],
+)
+def test_indicator_tables_have_one_row_per_key(name, key):
+    df = read_processed(name)
+    assert not df.duplicated(key).any()
+    assert set(df["status"]) <= {"ok", "partial", "missing"}
+
+
+def test_interest_education_units_and_cross_check():
+    ie = read_processed("interest_education")
+    ok = ie[ie["status"] == "ok"]
+    np.testing.assert_allclose(ok["interest_to_education"], ok["interest_pc_gdp"] / ok["education_pc_gdp"])
+    for col, tol in (("interest", ROUNDING), ("education", COFOG_ROUNDING)):
+        both = ie[[f"{col}_pc_gdp", f"{col}_pc_gdp_published"]].dropna()
+        assert (both.iloc[:, 0] - both.iloc[:, 1]).abs().max() <= tol
+    assert ok["education_pc_gdp"].between(2, 8).all()
+    assert ok["interest_pc_gdp"].between(0, 15).all()
+
+
+def test_productivity_rebased_to_start_year():
+    p = read_processed("productivity")
+    base = p[p["year"] == START_YEAR]
+    np.testing.assert_allclose(base["real_index_1995"].dropna(), 100)
+    eu = p[(p["geo"] == "EU27_2020") & (p["status"] == "ok")]
+    np.testing.assert_allclose(eu["level_pc_eu27_pps"], 100, atol=0.05)
+
+
+def test_electricity_series_are_not_spliced():
+    e = read_processed("electricity_prices")
+    ie = e[e["series"] == "consumer_Ie"]["period"]
+    band = e[e["series"] == "band_ID"]["period"]
+    assert ie.max() <= "2007-S2" and band.min() >= "2007-S1"
+    ok = e[e["status"] == "ok"]
+    assert ok["price_eur_kwh"].between(0.01, 1).all()

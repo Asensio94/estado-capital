@@ -30,15 +30,23 @@ def test_missing_input_is_kept_as_missing_not_filled(inputs):
     gap = (gov["geo"] == "ES") & (gov["year"] == START_YEAR + 1) & (gov["na_item"] == "P51C")
     out = net_investment.compute(gov[~gap], gdp)
     row = out[(out["geo"] == "ES") & (out["year"] == START_YEAR + 1)].iloc[0]
-    assert row["status"] == "missing"
+    assert row["status"] == "partial"
     assert np.isnan(row["cfc_meur"]) and np.isnan(row["net_pc_gdp"])
     assert pd.isna(row["consumes_stock"])
     assert (out.drop(row.name)["status"] == "ok").all()
 
 
-def test_country_without_any_data_still_appears(inputs):
+def test_country_without_government_data_still_appears(inputs):
     gov, gdp = inputs
     out = net_investment.compute(gov[gov["geo"] != "PT"], gdp)
+    pt = out[out["geo"] == "PT"]
+    assert len(pt) == 3 and (pt["status"] == "partial").all()
+    assert pt["net_pc_gdp"].isna().all()
+
+
+def test_country_without_any_data_is_missing(inputs):
+    gov, gdp = inputs
+    out = net_investment.compute(gov[gov["geo"] != "PT"], gdp[gdp["geo"] != "PT"])
     pt = out[out["geo"] == "PT"]
     assert len(pt) == 3 and (pt["status"] == "missing").all()
 

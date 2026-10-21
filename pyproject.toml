@@ -11,13 +11,14 @@ dependencies = [
     "pandas>=2.1",
     "pyarrow>=14",
     "requests>=2.31",
-    "dash>=2.14",
-    "plotly>=5.18",
+    "dash>=2.11",
+    "plotly>=5.17",
 ]
 
 [project.optional-dependencies]
 s3 = ["boto3>=1.28"]
 dev = ["pytest>=7.4"]
+serve = ["gunicorn>=21"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -26,3 +27,4 @@ where = ["src"]
 pythonpath = ["src", "."]
 testpaths = ["tests"]
 markers = ["data: checks on the processed parquet (skipped until `make etl` has run)"]
+filterwarnings = ["ignore:The behavior of DatetimeProperties.to_pydatetime:FutureWarning"]
